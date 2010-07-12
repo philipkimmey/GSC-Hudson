@@ -1,0 +1,12 @@
+First, run make install to put create a ~/.UR directory to use in your builds.
+
+Then, create a Hudson project that gets the SVN repo, then your Hudson "command"
+should point to the hudson.sh scripts in this directory.
+
+Finally, check "Publish JUnit test result report" and put something like:
+test_result/**/*.xml in the box.
+
+From there, it's up to you. You can have it email you or whatever.
+
+TODO:
+Use Devel::Cover to see test coverage.
