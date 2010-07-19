@@ -21,7 +21,10 @@ my $SNAPSHOT_PATH = '/gscuser/pkimmey/.snapshot'; # path to snapshots dir. Event
 my $GSCPAN = $ENV{GSCPAN} || 'svn+ssh://svn/srv/svn/gscpan'; #
 
 ####
-# This will parse Hudson's build status RSS feed and return the most recent successful build from today.
+# Parse Hudson's build status RSS feed and return the most recent successful build from today.
+#
+# Yes I am using Regexs to parse Xml. See:
+# http://stackoverflow.com/questions/1732348/regex-match-open-tags-except-xhtml-self-contained-tags/1732454#1732454
 ####
 sub check_for_new_build { # returns new build number or 0 if none.
     my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime(time);
@@ -44,41 +47,50 @@ sub check_for_new_build { # returns new build number or 0 if none.
 }
 
 #######
-# This takes the build number and returns the svn revision number, parsed from the build directory revision.txt file.
+# Takes the build number and returns the svn revision number, parsed from the build directory revision.txt file.
 #######
 sub get_genome_svn_rev {
     my $build_number = shift;
     
     my $revision_txt_path = $BUILD_PATH . '/' . $build_number . '/revision.txt';
 
-    my $rev_string = `head -n1 $revision_txt_path`;
+    open (revision_fh, $revision_txt_path);
     
-    $rev_string =~ /(\d+)/;
-
-    return $1;
+    while (<revision_fh>) {
+        if ( $_ =~ /Genome/ ) {
+            $_ =~ /Genome\sr(\d+)/;
+            return $1;
+        }
+    }
 }
 
 #######
-# This takes the build number and returns the UR revision hash, parsed from the build directory revision.txt file.
+# Takes the build number and returns the UR revision hash, parsed from the build directory revision.txt file.
 #######
 sub get_ur_git_hash {
     my $build_number = shift;
+
     my $revision_txt_path = $BUILD_PATH . '/' . $build_number . '/revision.txt';
-
-    my $rev_string = `tail -n1 $revision_txt_path`;
-
-    $rev_string =~ /UR\s(.+)/;
     
-    return $1;
+    open (revision_fh, $revision_txt_path);
 
+    while (<revision_fh>) {
+        if ( $_ =~ /UR/ ) {
+            $_ =~ /UR\s(.+)/;
+            return $1;
+        }
+    }
 }
 
 # Begin actual script run. We will eventually provide command line options for versions.
 # -b is for recent builds. -g is for genome rev. -u is for ur hash.
 
 if ($#ARGV == -1) { # no args. print usage message.
-    print "USAGE: perl deploy_script.pl [recent] OR [--build] OR [--genome and --ur]\n";
-    print "OPTIONS:\n\n";
+    print "USAGE: perl deploy_script.pl [--deploy] [--live] AND [--recent] OR [--build] OR [--genome and --ur]\n";
+    print "OPTIONS:\n";
+    print "   --deploy        \tDeploy to /gsc/scripts/opt after local snapshot\n";
+    print "   --live          \tDeploy to /gsc/script/lib/perl after local snapshot\n";
+    print "\n\n";    
     print "   --recent        \tUse the most recent successful Hudson build.\n\n";
     print "\tOR\n\n";
     print "   --build   {number}\tUse Genome and UR versions used in build number {number}.\n\n";
@@ -87,16 +99,16 @@ if ($#ARGV == -1) { # no args. print usage message.
     print "   --ur      {hash}\tUse UR from Git hash (hash).\n";
     exit;
 }
-my ($svn_rev, $ur_rev, $new_build_number, $recent);
+my ($svn_rev, $ur_rev, $new_build_number, $recent, $deploy, $live);
 
 GetOptions (
     "recent" => \$recent,
+    "deploy" => \$deploy,
+    "live" => \$live,
     "build=i" => \$new_build_number,
     "genome=i" => \$svn_rev,
     "ur=s" => \$ur_rev
 );
-
-
 
 if ( defined $svn_rev and defined $ur_rev ) {
     print "Genome and UR revisions declared. Snapshotting from these:\n";
@@ -142,10 +154,12 @@ if (-e ($snapshot_path) ) { die "Snapshot dir exists at $snapshot_path\n"; }
 
 # get perl_modules folders
 my @ns;
-@ns = (qw/Workflow MGAP PAP Genome/);
+@ns = (qw/Workflow MGAP PAP Genome BAP Bio/);
 for my $ns (@ns) {
     print "Beginning work on namespace $ns\n";
     `svn export -r $svn_rev $GSCPAN/perl_modules/trunk/$ns $snapshot_path/lib/perl/$ns`;
+    my $svn_cat_value = `svn cat -r $svn_rev $GSCPAN/perl_modules/trunk/$ns.pm`;
+    # TODO: add check that the svn catted file actually exists.
     `svn cat -r $svn_rev $GSCPAN/perl_modules/trunk/$ns.pm > $snapshot_path/lib/perl/$ns.pm`;
 }
 @ns = ();
@@ -168,7 +182,6 @@ print "Removing $working_path\n";
 `rmdir $working_path/lib`;
 `rmdir $working_path`;
 
-
 # restore sqlite dump files
 my @dump_files = `find $snapshot_path -iname *sqlite3-dump`;
 for my $sqlite_dump (@dump_files) {
@@ -185,13 +198,15 @@ for my $sqlite_dump (@dump_files) {
     }
 }
 
+print "Finished copying to local machine. Snapshot available at ~/.snapshot/genome-$svn_rev\n";
 
 #`cd $snapshot_path/lib/perl/UR; ur test use;`; # run tests which will generate the proper sqlite databases
 
 # TODO Move UR /t/ dir and run tests properly to generate databases. (not needed anymore?)
 # TODO also chmod +x /gsc/scripts/lib/perl/Genome/Model/Command/Services/WebApp/Main.psgi
 
-`scp -pqr $snapshot_path linus1:/gsc/scripts/opt/`; # deploy to /gsc/scripts/opt
-
-
-print "Finished copying to remote server. Snapshot available at /gsc/scripts/opt/genome-$svn_rev\n";
+if ( defined $deploy ) {
+    `scp -pqr $snapshot_path linus1:/gsc/scripts/opt/`; # deploy to /gsc/scripts/opt if used the --deploy flag
+    `ssh linus1 mv /gsc/scripts/opt/genome-$svn_rev /gsc/scripts/opt/genome-$svn_rev-testing`;
+    print "Finished copying to remote server. Snapshot available at /gsc/scripts/opt/genome-$svn_rev-testing\n";
+}
