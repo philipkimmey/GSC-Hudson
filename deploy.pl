@@ -154,7 +154,7 @@ if (-e ($snapshot_path) ) { die "Snapshot dir exists at $snapshot_path\n"; }
 
 # get perl_modules folders
 my @ns;
-@ns = (qw/Workflow MGAP PAP Genome BAP Bio/);
+@ns = (qw/Workflow MGAP PAP Genome BAP Bio GAP/);
 for my $ns (@ns) {
     print "Beginning work on namespace $ns\n";
     `svn export -r $svn_rev $GSCPAN/perl_modules/trunk/$ns $snapshot_path/lib/perl/$ns`;
@@ -206,7 +206,6 @@ print "Finished copying to local machine. Snapshot available at ~/.snapshot/geno
 # TODO also chmod +x /gsc/scripts/lib/perl/Genome/Model/Command/Services/WebApp/Main.psgi
 
 if ( defined $deploy ) {
-    `scp -pqr $snapshot_path linus1:/gsc/scripts/opt/`; # deploy to /gsc/scripts/opt if used the --deploy flag
-    `ssh linus1 mv /gsc/scripts/opt/genome-$svn_rev /gsc/scripts/opt/genome-$svn_rev-testing`;
+    `scp -pqr $snapshot_path linus1:/gsc/scripts/opt/genome-$svn_rev-testing`; # deploy to /gsc/scripts/opt if used the --deploy flag
     print "Finished copying to remote server. Snapshot available at /gsc/scripts/opt/genome-$svn_rev-testing\n";
 }

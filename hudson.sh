@@ -1,12 +1,14 @@
 #!/bin/bash
 
+CODE_STORAGE_BASE=~/.hudson_repos
+
 ##
 # Make sure source is in correct location.
 ##
-if [ -e ~/.hudson_repos/UR ] && [ -e ~/.hudson_repos/perl_modules ]; then
-	echo "~/.hudson_repos/UR folder exists. Assuming it is valid."
+if [ -e $CODE_STORAGE_BASE/UR ] && [ -e $CODE_STORAGE_BASE/perl_modules ]; then
+	echo "$CODE_STORAGE_BASE/{UR, perl_modules} folders exists. Assuming it is valid."
 else
-	echo "~/.hudson_repos/UR folder does not exist. Please run 'make install'. Exiting."
+	echo "$CODE_STORAGE_BASE/UR folders do not all exist. Please run 'make install'. Exiting."
 	exit
 fi
 
@@ -26,10 +28,10 @@ rm $WORKSPACE/test_result -rvf
 ##
 # update UR & copy
 ##
-cd ~/.hudson_repos/UR
+cd $CODE_STORAGE_BASE/UR
 git pull origin master # update UR
 cd $WORKSPACE
-git clone ~/.hudson_repos/UR/.git UR # clone UR from local .UR directory
+git clone $CODE_STORAGE_BASE/UR/.git UR # clone UR from local .UR directory
 cd $WORKSPACE/UR
 
 ##
@@ -41,10 +43,10 @@ git show --oneline --summary | head -n1 | cut -d ' ' -f1 >> ~/.hudson/jobs/$JOB_
 ##
 # update genome and copy
 ##
-cd ~/.hudson_repos/perl_modules
+cd $CODE_STORAGE_BASE/perl_modules
 svn cleanup
 svn up
-cp ~/.hudson_repos/perl_modules $WORKSPACE/ -Rv
+cp $CODE_STORAGE_BASE/perl_modules $WORKSPACE/ -Rv
 
 ##
 # Put Genome version information in revision.txt
@@ -57,6 +59,5 @@ svn log | head -n2 | tail -n1 | cut -d ' ' -f1 >> ~/.hudson/jobs/$JOB_NAME/build
 # run actual tests
 ##
 cd $WORKSPACE/perl_modules/Genome
-PERL_TEST_HARNESS_DUMP_TAP=$WORKSPACE/test_result PERL5LIB=$WORKSPACE/UR/lib:~/.perl_libs/:/gsc/scripts/lib/perl ur test run --recurse --lsf-params="-R 'select[type==LINUX64 && model!=Opteron250 && tmp>1000 && mem>4000] rusage[tmp=1000, mem=4000]'" --lsf --jobs=10 --junit
-
-whoami
+# PERL_TEST_HARNESS_DUMP_TAP=$WORKSPACE/test_result PERL5LIB=$WORKSPACE/UR/lib:~/.perl_libs/:/gsc/scripts/lib/perl ur test run --recurse --lsf-params="-R 'select[type==LINUX64 && model!=Opteron250 && tmp>1000 && mem>4000] rusage[tmp=1000, mem=4000]'" --lsf --jobs=10 --junit
+PERL_TEST_HARNESS_DUMP_TAP=$WORKSPACE/test_result PERL5LIB=$WORKSPACE/UR/lib:/gscuser/pkimmey/.perl_libs/:/gsc/scripts/lib/perl ur test run --recurse --junit
