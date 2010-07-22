@@ -1,7 +1,0 @@
-RSS_FEED_URL: 'http://linus262:8080/job/Genome/rssAll'
-BUILD_PATH: '/gscuser/pkimmey/.hudson/jobs/Genome/builds'
-UR_PATH: '/gscuser/pkimmey/UR'
-SNAPSHOT_PATH: '/gscuser/pkimmey/.snapshot'
-# will use $ENV{GSCPAN} if available instead of below value.
-GSCPAN: 'svn+ssh://svn/srv/svn/gscpan'
-
