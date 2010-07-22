@@ -16,9 +16,12 @@ use Getopt::Long;
 #############
 my $RSS_FEED_URL = 'http://linus262:8080/job/Genome/rssAll';
 my $BUILD_PATH = '/gscuser/pkimmey/.hudson/jobs/Genome/builds';
-my $UR_PATH = '/gscuser/pkimmey/UR'; #path to root of UR
 my $SNAPSHOT_PATH = '/gscuser/pkimmey/.snapshot'; # path to snapshots dir. Eventually will move stuff to opt
 my $GSCPAN = $ENV{GSCPAN} || 'svn+ssh://svn/srv/svn/gscpan'; #
+
+my $UR_REPOSITORY = 'git://github.com/sakoht/UR.git';
+my $WORKFLOW_REPOSITORY = 'ssh://git/srv/git/workflow.git';
+my $GENOME_REPOSITORY = 'ssh://git/srv/git/genome.git';
 
 ####
 # Parse Hudson's build status RSS feed and return the most recent successful build from today.
@@ -95,25 +98,28 @@ if ($#ARGV == -1) { # no args. print usage message.
     print "\tOR\n\n";
     print "   --build   {number}\tUse Genome and UR versions used in build number {number}.\n\n";
     print "\tOR\n\n";
-    print "   --genome  {rev#}\tUse genome from SVN revision number rev#.\n";
+    print "   --genome  {hash}\tUse genome from Git hash (hash).\n";
     print "   --ur      {hash}\tUse UR from Git hash (hash).\n";
+    print "   --workflow {hash}\tUse workflow from Git hash (hash).\n";
     exit;
 }
-my ($svn_rev, $ur_rev, $new_build_number, $recent, $deploy, $live);
+my ($genome_hash, $ur_hash, $workflow_hash, $new_build_number, $recent, $deploy, $live);
 
 GetOptions (
     "recent" => \$recent,
     "deploy" => \$deploy,
     "live" => \$live,
     "build=i" => \$new_build_number,
-    "genome=i" => \$svn_rev,
-    "ur=s" => \$ur_rev
+    "genome=s" => \$genome_hash,
+    "ur=s" => \$ur_hash,
+    "workflow=s" => \$workflow_hash
 );
 
-if ( defined $svn_rev and defined $ur_rev ) {
+if ( defined $genome_hash and defined $ur_hash and defined $workflow_hash ) {
     print "Genome and UR revisions declared. Snapshotting from these:\n";
-    print "Genome Rev: " . $svn_rev . "\n";
-    print "UR Rev: " . $ur_rev . "\n";
+    print "Genome hash: " . $genome_hash . "\n";
+    print "UR hash: " . $ur_hash . "\n";
+    print "Workflow hash: " . $workflow_hash . "\n";
 } else {
     if ( defined $recent ) {
         $new_build_number = check_for_new_build;
@@ -130,22 +136,24 @@ if ( defined $svn_rev and defined $ur_rev ) {
         die "You must either specify a build number, use the --recent flag, or provide genome and ur rev #s.";
     }
 
-    $svn_rev = get_genome_svn_rev($new_build_number);
+    $genome_hash = get_genome_svn_rev($new_build_number);
 
-    print "Genome Revision number: r" . $svn_rev . "\n";
+    print "Genome hash" . $genome_hash . "\n";
 
-    $ur_rev = get_ur_git_hash($new_build_number);
+    $ur_hash = get_ur_git_hash($new_build_number);
 
-    print "UR Hash: " . $ur_rev . "\n";
+    print "UR Hash: " . $ur_hash . "\n";
+
+    $workflow_hash = get_workflow_hash($new_build_number);
 }
 
-unless (defined $svn_rev && $svn_rev > 0 && defined $ur_rev && $ur_rev ne '')
+unless (defined $genome_hash && $genome_hash ne '' && defined $ur_hash && $ur_hash ne '' && defined $workflow_hash && $workflow_hash ne '')
 {
     die "Some needed variable is not set.\n";
 }
 
-my $snapshot_path = "$SNAPSHOT_PATH/genome-$svn_rev";
-my $working_path = "$SNAPSHOT_PATH/working-$svn_rev";
+my $snapshot_path = "$SNAPSHOT_PATH/genome-testing";
+my $working_path = "$SNAPSHOT_PATH/working-testing";
 
 if (-e ($snapshot_path) ) { die "Snapshot dir exists at $snapshot_path\n"; }
 
@@ -153,33 +161,71 @@ if (-e ($snapshot_path) ) { die "Snapshot dir exists at $snapshot_path\n"; }
 `mkdir $working_path`;
 
 # get perl_modules folders
-my @ns;
-@ns = (qw/Workflow MGAP PAP Genome BAP Bio GAP/);
-for my $ns (@ns) {
-    print "Beginning work on namespace $ns\n";
-    `svn export -r $svn_rev $GSCPAN/perl_modules/trunk/$ns $snapshot_path/lib/perl/$ns`;
-    my $svn_cat_value = `svn cat -r $svn_rev $GSCPAN/perl_modules/trunk/$ns.pm`;
-    # TODO: add check that the svn catted file actually exists.
-    `svn cat -r $svn_rev $GSCPAN/perl_modules/trunk/$ns.pm > $snapshot_path/lib/perl/$ns.pm`;
-}
-@ns = ();
-
-@ns = (qw/Command UR/);
+#my @ns;
+#@ns = (qw/Workflow MGAP PAP Genome BAP Bio GAP/);
+#for my $ns (@ns) {
+#    print "Beginning work on namespace $ns\n";
+#    `svn export -r $svn_rev $GSCPAN/perl_modules/trunk/$ns $snapshot_path/lib/perl/$ns`;
+#    my $svn_cat_value = `svn cat -r $svn_rev $GSCPAN/perl_modules/trunk/$ns.pm`;
+#    # TODO: add check that the svn catted file actually exists.
+#    `svn cat -r $svn_rev $GSCPAN/perl_modules/trunk/$ns.pm > $snapshot_path/lib/perl/$ns.pm`;
+#}
+#@ns = ();
 # Get UR folders
+#for my $ns (@ns) {
+#    print "Beginning work on namespace $ns\n";
+#    `cd ~/UR/; git archive $ur_rev lib/$ns lib/$ns.pm | tar -x -C $working_path/`;
+#    `mv $working_path/lib/$ns $working_path/lib/$ns.pm $snapshot_path/lib/perl/`;
+#}
+# first we're going to clone all the stuff we want into our working path.
+
+`mkdir $snapshot_path/lib; mkdir $snapshot_path/lib/perl`;
+my @ns;
+##
+# Do UR work
+##
+`cd $working_path; git clone $UR_REPOSITORY UR`;
+@ns = (qw/Command UR/);
 for my $ns (@ns) {
     print "Beginning work on namespace $ns\n";
-    `cd ~/UR/; git archive $ur_rev lib/$ns lib/$ns.pm | tar -x -C $working_path/`;
-    `mv $working_path/lib/$ns $working_path/lib/$ns.pm $snapshot_path/lib/perl/`;
+    `cd $working_path/UR/lib; git archive $ur_hash $ns | tar -x -C $snapshot_path/lib/perl`;
+    `cd $working_path/UR/lib; git archive $ur_hash $ns.pm | tar -x -C $snapshot_path/lib/perl`;
 }
+# cleanup after UR related stuff
+`rm $working_path/UR -rf`;
+
+##
+# Do workflow work
+##
+
+`cd $working_path; git clone $WORKFLOW_REPOSITORY workflow`;
+@ns = (qw/Workflow/);
+for my $ns (@ns) {
+    print "Beginning work on namespace $ns\n";
+    `cd $working_path/workflow/lib; git archive $workflow_hash $ns.pm | tar -x -C $snapshot_path/lib/perl`;
+    `cd $working_path/workflow/lib; git archive $workflow_hash $ns.pm | tar -x -C $snapshot_path/lib/perl`;
+}
+`rm $working_path/workflow -rf`;
+
+##
+# Do genome work
+##
+`cd $working_path; git clone $GENOME_REPOSITORY genome`;
+@ns = (qw/BAP Bio EGAP GAP Genome MGAP PAP/);
+for my $ns (@ns) {
+    print "Beginning work on namespace $ns\n";
+    `cd $working_path/genome/lib/perl; git archive $genome_hash $ns | tar -x -C $snapshot_path/lib/perl`;
+    `cd $working_path/genome/lib/perl; git archive $genome_hash $ns.pm | tar -x -C $snapshot_path/lib/perl`;
+}
+`rm $working_path/genome -rf`;
 
 # move UR tests into place
-`cd ~/UR/; git archive $ur_rev t | tar -x -C $working_path/`;
-`mv $working_path/t $snapshot_path/lib/perl/UR/`;
+#`cd ~/UR/; git archive $ur_rev t | tar -x -C $working_path/`;
+#`mv $working_path/t $snapshot_path/lib/perl/UR/`;
 
 # working_path directory no longer needed.
 print "Removing $working_path\n";
 
-`rmdir $working_path/lib`;
 `rmdir $working_path`;
 
 # restore sqlite dump files
@@ -198,7 +244,7 @@ for my $sqlite_dump (@dump_files) {
     }
 }
 
-print "Finished copying to local machine. Snapshot available at ~/.snapshot/genome-$svn_rev\n";
+print "Finished copying to local machine. Snapshot available at ";
 
 #`cd $snapshot_path/lib/perl/UR; ur test use;`; # run tests which will generate the proper sqlite databases
 
@@ -206,6 +252,6 @@ print "Finished copying to local machine. Snapshot available at ~/.snapshot/geno
 # TODO also chmod +x /gsc/scripts/lib/perl/Genome/Model/Command/Services/WebApp/Main.psgi
 
 if ( defined $deploy ) {
-    `scp -pqr $snapshot_path linus1:/gsc/scripts/opt/genome-$svn_rev-testing`; # deploy to /gsc/scripts/opt if used the --deploy flag
-    print "Finished copying to remote server. Snapshot available at /gsc/scripts/opt/genome-$svn_rev-testing\n";
+    `scp -pqr $snapshot_path linus1:/gsc/scripts/opt/genome-$genome_hash-testing`; # deploy to /gsc/scripts/opt if used the --deploy flag
+    print "Finished copying to remote server. Snapshot available at /gsc/scripts/opt/genome-$genome_hash-testing\n";
 }
