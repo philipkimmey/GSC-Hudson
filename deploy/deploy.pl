@@ -14,14 +14,8 @@ use Getopt::Long;
 # 5. Deploy to /gsc/scripts/opt
 # 6. Deploy to /gsc/scripts/lib/perl
 #############
-my $RSS_FEED_URL = 'http://linus262:8080/job/Genome/rssAll';
-my $BUILD_PATH = '/gscuser/pkimmey/.hudson/jobs/Genome/builds';
-my $SNAPSHOT_PATH = '/gscuser/pkimmey/.snapshot'; # path to snapshots dir. Eventually will move stuff to opt
-my $GSCPAN = $ENV{GSCPAN} || 'svn+ssh://svn/srv/svn/gscpan'; #
 
-my $UR_REPOSITORY = 'git://github.com/sakoht/UR.git';
-my $WORKFLOW_REPOSITORY = 'ssh://git/srv/git/workflow.git';
-my $GENOME_REPOSITORY = 'ssh://git/srv/git/genome.git';
+require './defaults.pl';
 
 ####
 # Parse Hudson's build status RSS feed and return the most recent successful build from today.
