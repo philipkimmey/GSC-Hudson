@@ -248,7 +248,7 @@ for my $sqlite_dump (@dump_files) {
 `echo "genome $genome_hash" >> $snapshot_path/revisions.txt`;
 
 
-print "Finished copying to local machine. Snapshot available at ";
+print "Finished copying to local machine. Snapshot available at $snapshot_path";
 
 #`cd $snapshot_path/lib/perl/UR; ur test use;`; # run tests which will generate the proper sqlite databases
 
