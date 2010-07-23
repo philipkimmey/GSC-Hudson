@@ -83,7 +83,7 @@ sub get_ur_git_hash {
 # -b is for recent builds. -g is for genome rev. -u is for ur hash.
 
 if ($#ARGV == -1) { # no args. print usage message.
-    print "USAGE: perl deploy_script.pl [--deploy] [--live] AND [--recent] OR [--build] OR [--genome and --ur]\n";
+    print "USAGE: perl deploy_script.pl --name=genome-number [--deploy] AND [--recent] OR [--build] OR [--genome and --ur and --namespace]\n";
     print "OPTIONS:\n";
     print "   --deploy        \tDeploy to /gsc/scripts/opt after local snapshot\n";
     print "\n\n";    
@@ -96,9 +96,10 @@ if ($#ARGV == -1) { # no args. print usage message.
     print "   --workflow {hash}\tUse workflow from Git hash (hash).\n";
     exit;
 }
-my ($genome_hash, $ur_hash, $workflow_hash, $new_build_number, $recent, $deploy);
+my ($genome_hash, $ur_hash, $workflow_hash, $new_build_number, $recent, $deploy, $snapshot_name);
 
 GetOptions (
+    "name" => \$snapshot_name,
     "recent" => \$recent,
     "deploy" => \$deploy,
     "build=i" => \$new_build_number,
@@ -144,8 +145,8 @@ unless (defined $genome_hash && $genome_hash ne '' && defined $ur_hash && $ur_ha
     die "Some needed variable is not set.\n";
 }
 
-my $snapshot_path = "$Defaults::SNAPSHOT_PATH/genome-testing";
-my $working_path = "$Defaults::SNAPSHOT_PATH/working-testing";
+my $snapshot_path = "$Defaults::SNAPSHOT_PATH/$snapshot_name";
+my $working_path = "/tmp/working-$snapshot_name";
 
 if (-e ($snapshot_path) ) { die "Snapshot dir exists at $snapshot_path\n"; }
 
