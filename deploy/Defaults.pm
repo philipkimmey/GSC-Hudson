@@ -1,4 +1,5 @@
-# set defaults in here.
+package Defaults;
+
 our $RSS_FEED_URL = 'http://linus262:8080/job/Genome/rssAll';
 our $BUILD_PATH = '/gscuser/pkimmey/.hudson/jobs/Genome/builds';
 our $SNAPSHOT_PATH = '/gscuser/pkimmey/.snapshot';
