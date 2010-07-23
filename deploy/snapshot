@@ -231,7 +231,8 @@ for my $sqlite_dump (@dump_files) {
     chomp $sqlite_db;
     $sqlite_db =~ s/-dump//;
     if (-e $sqlite_db) {
-        warn "SQlite database $sqlite_db already exists.";
+        # the old version had a warn here, but doesn't seem necessary
+        #warn "SQlite database $sqlite_db already exists.";
     } else {
         `sqlite3 $sqlite_db < $sqlite_dump`;
     }
