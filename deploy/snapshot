@@ -99,7 +99,7 @@ if ($#ARGV == -1) { # no args. print usage message.
 my ($genome_hash, $ur_hash, $workflow_hash, $new_build_number, $recent, $deploy, $snapshot_name);
 
 GetOptions (
-    "name" => \$snapshot_name,
+    "name=s" => \$snapshot_name,
     "recent" => \$recent,
     "deploy" => \$deploy,
     "build=i" => \$new_build_number,
@@ -197,7 +197,7 @@ $workflow_hash = `cd $working_path/workflow; git show --pretty=oneline $workflow
 @ns = (qw/Workflow/);
 for my $ns (@ns) {
     print "Beginning work on namespace $ns\n";
-    `cd $working_path/workflow/lib; git archive $workflow_hash $ns.pm | tar -x -C $snapshot_path/lib/perl`;
+    `cd $working_path/workflow/lib; git archive $workflow_hash $ns | tar -x -C $snapshot_path/lib/perl`;
     `cd $working_path/workflow/lib; git archive $workflow_hash $ns.pm | tar -x -C $snapshot_path/lib/perl`;
 }
 `rm $working_path/workflow -rf`;
