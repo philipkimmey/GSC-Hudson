@@ -1,0 +1,39 @@
+#!/gsc/bin/perl
+use strict;
+use warnings;
+
+use Getopt::Long;
+use UR;
+
+my ($genome_hash, $ur_hash, $workflow_hash);
+
+GetOptions( 
+    "genome=s" => \$genome_hash,
+    "ur=s" => \$ur_hash,
+    "workflow=s" => \$workflow_hash
+);
+
+if ( defined $genome_hash and defined $ur_hash and defined $workflow_hash ) {
+    print "Deploying the following hashes:\n";
+    print "Genome: " . $genome_hash . "\n";
+    print "UR: " . $ur_hash . "\n";
+    print "Workflow: " . $workflow_hash . "\n";
+} else {
+    die "You did not specify all required arguments."
+}
+
+
+my $ts = UR::Time->now();
+$ts =~ s/\s/_/g;
+
+my $tmp_dir = join('-', 'deploy', $ts, $ENV{USER}, hostname());
+$tmp_dir =~ s/\s/_/g;
+$tmp_dir =~ s/\:/-/g;
+
+my $tmp_base = '/tmp/' . $tmp_dir;
+
+print "Working directory is $tmp_base\n";
+
+
+
+# TODO: chmod +x /gsc/scripts/lib/perl/Genome/Model/Command/Services/WebApp/Main.psgi
