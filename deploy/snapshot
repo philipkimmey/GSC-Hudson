@@ -129,7 +129,6 @@ for my $repo (@repos) {
     `$command`;
     $command = "cd $working_path/" . $repo->{'repository_name'} . "; git show --pretty=oneline " . $repo->{'hash'} . " | tr -d '\n' | cut -d ' ' -f1";
     $recorded_hash = `$command`;
-    #$recorded_hash = `cd $working_path/$repo->{'repository_name'}; git show --pretty=oneline $repo->{'hash'} | tr -d '\n' | cut -d ' ' -f1`;
     chomp $recorded_hash; chomp $recorded_hash; chomp $recorded_hash;
     for my $ns ( @{ $repo->{'namespaces'} } ) {
         $DB::single = 1;
@@ -146,52 +145,7 @@ for my $repo (@repos) {
 
 $command = "rm $working_path/ -rf";
 `$command`;
-##
-# Do UR work
-##
-#`cd $working_path; git clone $Defaults::UR_REPOSITORY UR`;
-#$ur_hash = `cd $working_path/UR; git show --pretty=oneline $ur_hash | tr -d '\n' | cut -d ' ' -f1`; chomp $ur_hash; chomp $ur_hash; chomp $ur_hash;
-#@ns = (qw/Command UR/);
-#for my $ns (@ns) {
-#    print "Beginning work on namespace $ns\n";
-#    `cd $working_path/UR/lib; git archive $ur_hash $ns | tar -x -C $snapshot_path/lib/perl`;
-#    `cd $working_path/UR/lib; git archive $ur_hash $ns.pm | tar -x -C $snapshot_path/lib/perl`;
-#}
-## cleanup after UR related stuff
-#`rm $working_path/UR -rf`;
-#
-###
-## Do workflow work
-##
 
-#`cd $working_path; git clone $Defaults::WORKFLOW_REPOSITORY workflow`;
-#$workflow_hash = `cd $working_path/workflow; git show --pretty=oneline $workflow_hash | tr -d '\n' | cut -d ' ' -f1`; chomp $workflow_hash; chomp $workflow_hash; chomp $workflow_hash;
-#@ns = (qw/Workflow/);
-#for my $ns (@ns) {
-#    print "Beginning work on namespace $ns\n";
-#    `cd $working_path/workflow/lib; git archive $workflow_hash $ns | tar -x -C $snapshot_path/lib/perl`;
-#    `cd $working_path/workflow/lib; git archive $workflow_hash $ns.pm | tar -x -C $snapshot_path/lib/perl`;
-#}
-#`rm $working_path/workflow -rf`;
-
-##
-# Do genome work
-##
-#`cd $working_path; git clone $Defaults::GENOME_REPOSITORY genome`;
-#$genome_hash = `cd $working_path/genome; git show --pretty=oneline $genome_hash | tr -d '\n' | cut -d ' ' -f1`; chomp $genome_hash; chomp $genome_hash; chomp $genome_hash;
-#@ns = (qw/BAP Bio EGAP GAP Genome MGAP PAP/);
-#for my $ns (@ns) {
-#    print "Beginning work on namespace $ns\n";
-#    `cd $working_path/genome/lib/perl; git archive $genome_hash $ns | tar -x -C $snapshot_path/lib/perl`;
-#    `cd $working_path/genome/lib/perl; git archive $genome_hash $ns.pm | tar -x -C $snapshot_path/lib/perl`;
-#}
-#`rm $working_path/genome -rf`;
-
-#print "Removing $working_path\n";
-
-#`rmdir $working_path`;
-
-# restore sqlite dump files
 my @dump_files = `find $snapshot_path -iname *sqlite3-dump`;
 for my $sqlite_dump (@dump_files) {
     my $sqlite_db = $sqlite_dump;
@@ -206,13 +160,6 @@ for my $sqlite_dump (@dump_files) {
         die "Failed to reconstitute $sqlite_dump as $sqlite_db!";
     }
 }
-
-##
-# Create a revisions.txt file to track software versions in this snapshot
-###`echo "workflow $workflow_hash" >> $snapshot_path/revisions.txt`;
-#`echo "ur $ur_hash" >> $snapshot_path/revisions.txt`;
-#`echo "genome $genome_hash" >> $snapshot_path/revisions.txt`;
-
 
 print "Finished copying to local machine. Snapshot available at $snapshot_path\n";
 
