@@ -1,7 +1,5 @@
 #!/bin/bash
 
-CODE_STORAGE_BASE=/gscuser/pkimmey/.hudson_repos
-HUDSON_PROJECT_PATH=/gscuser/pkimmey/.hudson/jobs/
 if [ -n "${HUDSON_PROJECT_PATH+x}"; then
     echo "HUDSON_PROJECT_PATH set, continuing"
 else
