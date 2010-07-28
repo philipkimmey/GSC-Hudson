@@ -77,7 +77,7 @@ echo -n "genome " >> $HUDSON_PROJECT_PATH/$JOB_NAME/builds/$BUILD_NUMBER/revisio
 # copy workflow
 ##
 cd $WORKSPACE
-/gsc/bin/git clone $CODE_STORAGE_BASE/genome/.git workflow
+/gsc/bin/git clone $CODE_STORAGE_BASE/workflow/.git workflow
 
 ##
 # put workflow information in revision.txt
