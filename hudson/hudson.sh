@@ -94,6 +94,6 @@ cd $WORKSPACE/genome/lib/perl/Genome/
 # PERL_TEST_HARNESS_DUMP_TAP=$WORKSPACE/test_result PERL5LIB=$WORKSPACE/UR/lib:~/.perl_libs/:/gsc/scripts/lib/perl ur test run --recurse --lsf-params="-R 'select[type==LINUX64 && model!=Opteron250 && tmp>1000 && mem>4000] rusage[tmp=1000, mem=4000]'" --lsf --jobs=10 --junit
 # PERL_TEST_HARNESS_DUMP_TAP=$WORKSPACE/test_result PERL5LIB=$WORKSPACE/UR/lib:/gscuser/pkimmey/.perl_libs/:/gsc/scripts/lib/perl ur test run --recurse --junit
 #PERL_TEST_HARNESS_DUMP_TAP=$WORKSPACE/test_result PERL5LIB=$WORKSPACE/UR/lib:$WORKSPACE/genome/lib/perl:$WORKSPACE/workflow/lib/perl:/gsc/lib/perl5/site_perl/5.8.3/i686-linux/:/gsc/lib/perl5/site_perl/5.8.3/:/gsc/lib/perl5/site_perl/5.8.7/:/gsc/lib/perl5/site_perl/5.8.7/i686-linux/:/gsc/lib/perl5/5.8.7/:/gsc/lib/perl5/5.8.7/i686-linux/:/gsc/scripts/lib/perl:/gsc/scripts/gsc/gsc/lib:/gsc/scripts/gsc/info/lib:/gscuser/pkimmey/.perl_libs $WORKSPACE/UR/bin/ur test run --recurse --junit
-PERL_TEST_HARNESS_DUMP_TAP=$WORKSPACE/test_result
-PERL5LIB=$WORKSPACE/UR/lib:$WORKSPACE/genome/lib/perl:$WORKSPACE/workflow/lib/perl:/gscuser/pkimmey/.perl_libs:/gsc/lib/perl5/site_perl/5.8.3/i686-linux/:/gsc/lib/perl5/site_perl/5.8.3/:/gsc/lib/perl5/5.8.7/
+export PERL_TEST_HARNESS_DUMP_TAP=$WORKSPACE/test_result
+export PERL5LIB=$WORKSPACE/UR/lib:$WORKSPACE/genome/lib/perl:$WORKSPACE/workflow/lib/perl:/gscuser/pkimmey/.perl_libs:/gsc/lib/perl5/site_perl/5.8.3/i686-linux/:/gsc/lib/perl5/site_perl/5.8.3/:/gsc/lib/perl5/5.8.7/
 /gsc/scripts/sbin/gsc-cron $WORKSPACE/UR/bin/ur test run --recurse --junit --lsf --jobs=16
