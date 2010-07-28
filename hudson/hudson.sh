@@ -1,6 +1,6 @@
 #!/bin/bash
 
-if [ -n "${HUDSON_PROJECT_PATH+x}"; then
+if [ -n "${HUDSON_PROJECT_PATH+x}" ]; then
     echo "HUDSON_PROJECT_PATH set, continuing"
 else
     echo "HUDSON_PROJECT_PATH not set. Exiting."
