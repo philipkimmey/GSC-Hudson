@@ -48,10 +48,7 @@ GetOptions (
 
 if ( defined $genome_hash and defined $ur_hash and defined $workflow_hash ) {
     print "Genome and UR revisions declared. Snapshotting from these:\n";
-    print "Genome hash: " . $genome_hash . "\n";
-    print "UR hash: " . $ur_hash . "\n";
-    print "Workflow hash: " . $workflow_hash . "\n";
-} else {
+} else { # based in some way off Hudson builds
     if ( defined $recent ) {
         $new_build_number = Library::check_for_new_build;
 
@@ -67,16 +64,21 @@ if ( defined $genome_hash and defined $ur_hash and defined $workflow_hash ) {
         die "You must either specify a build number, use the --recent flag, or provide genome and ur rev #s.";
     }
 
-    $genome_hash = get_genome_svn_rev($new_build_number);
+    $genome_hash = Library::get_genome_hash($new_build_number);
 
-    print "Genome hash" . $genome_hash . "\n";
+    $ur_hash = Library::get_ur_hash($new_build_number);
 
-    $ur_hash = get_ur_git_hash($new_build_number);
+    $workflow_hash = Library::get_workflow_hash($new_build_number);
 
-    print "UR Hash: " . $ur_hash . "\n";
-
-    $workflow_hash = get_workflow_hash($new_build_number);
+    unless ( defined $snapshot_name ) {
+        $snapshot_name = 'genome-' . $new_build_number;
+    }
 }
+
+print "Genome hash: " . $genome_hash . "\n";
+print "UR hash: " . $ur_hash . "\n";
+print "Workflow hash: " . $workflow_hash . "\n";
+print "Snapshot name: " . $snapshot_name . "\n";
 
 unless (defined $genome_hash && $genome_hash ne '' && defined $ur_hash && $ur_hash ne '' && defined $workflow_hash && $workflow_hash ne '')
 {
@@ -86,14 +88,14 @@ unless (defined $genome_hash && $genome_hash ne '' && defined $ur_hash && $ur_ha
 my $snapshot_path = "$Defaults::SNAPSHOT_PATH/$snapshot_name";
 my $working_path = "/tmp/working-$snapshot_name";
 
-if (-e ($snapshot_path) ) { die "Snapshot dir exists at $snapshot_path\n"; }
+#if (-e ($snapshot_path) ) { die "Snapshot dir exists at $snapshot_path\n"; }
 
-`mkdir $snapshot_path`;
-`mkdir $working_path`;
+#`mkdir $snapshot_path`;
+#`mkdir $working_path`;
 
 # first we're going to clone all the stuff we want into our working path.
 
-`mkdir $snapshot_path/lib; mkdir $snapshot_path/lib/perl`;
+#`mkdir $snapshot_path/lib; mkdir $snapshot_path/lib/perl`;
 
 # define repositories, locations, namespaces
 my @repos = (
@@ -121,7 +123,9 @@ my @repos = (
     }
 );
 
+Library::snapshot_namespaces( $snapshot_path, @repos );
 
+=begin
 my $recorded_hash;
 my $command;
 for my $repo (@repos) {
@@ -131,7 +135,6 @@ for my $repo (@repos) {
     $recorded_hash = `$command`;
     chomp $recorded_hash; chomp $recorded_hash; chomp $recorded_hash;
     for my $ns ( @{ $repo->{'namespaces'} } ) {
-        $DB::single = 1;
         print "Beginning work on namespace $ns\n";
         $command = "cd $working_path/" . $repo->{'repository_name'} . "/" . $repo->{'library_path'} . "; git archive " . $repo->{'hash'} . " $ns | tar -x -C $snapshot_path/lib/perl";
         `$command`;
@@ -145,7 +148,8 @@ for my $repo (@repos) {
 
 $command = "rm $working_path/ -rf";
 `$command`;
-
+=end
+=cut
 my @dump_files = `find $snapshot_path -iname *sqlite3-dump`;
 for my $sqlite_dump (@dump_files) {
     my $sqlite_db = $sqlite_dump;
