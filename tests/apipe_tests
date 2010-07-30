@@ -19,7 +19,7 @@ use Genome;
 my $LOOP_SLEEP_MINS = 1;
 my $TIMEOUT_HOURS = 30;
 
-my @model_ids = ("2857581024", "2859885434");
+my @model_ids = (2853834494, 2857580641, 2857581024, 2857479926, 2857912274, 2859885434);
 my @build_ids = ();
 
 foreach my $model_id (@model_ids) {
