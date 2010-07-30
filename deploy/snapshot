@@ -141,5 +141,7 @@ print "Finished copying to local machine. Snapshot available at $snapshot_path\n
 if ( defined $testing ) {
     `scp -pqr $snapshot_path linus1:/gsc/scripts/opt/testings/`; # deploy to /gsc/scripts/opt if used the --deploy flag
     print "Finished copying to remote server. Snapshot available at /gsc/scripts/opt/testings/$snapshot_name \n";
-    `export GENOME_LIBRARY_PATH=/gsc/scripts/opt/testings/$snapshot_name`;
+    if ( defined $modeltests ) {
+        `GENOME_LIBRARY_PATH=/gsc/scripts/opt/testings/$snapshot_name $ENV{APIPE_TEST_SCRIPT_PATH}`;
+    }
 }
