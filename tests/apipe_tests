@@ -51,7 +51,6 @@ while (1) {
     foreach my $build_id (@build_ids) {
         $build = UR::Context->current->reload("Genome::Model::Build", id=>$build_id);
         $event = UR::Context->current->reload("Genome::Model::Event", id=>$build_master_events{$build_id});
-        #print "$build_id status is " . $event->event_status . "\n";
         if ($event->event_status =~ /Failed/) {
             $failure += 1;
         } elsif ($event->event_status =~ /Succeeded/) {
@@ -60,7 +59,6 @@ while (1) {
             $other += 1;
         }
     }
-    #print "Success: $success, Failure: $failure, Other: $other\n";
     if ($failure == 0 and $other == 0) { #success
         my $success_msg_body = "Success! all models build successfully";
         my $success_msg = MIME::Lite->new(From => sprintf('Model Build Test Runner <%s@genome.wustl.edu>', $ENV{'USER'}),
@@ -80,6 +78,5 @@ while (1) {
         $failure_msg->send();
         exit 1;
     }
-    #print "\n\n";
     sleep 60*$LOOP_SLEEP_MINS;
 }
