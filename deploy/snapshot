@@ -133,9 +133,9 @@ for my $sqlite_dump (@dump_files) {
 }
 
 print "FIXME MISSING SO FILES: Generating auto-competition opt files\n";
-#`cd $snapshot_path/lib/perl/; ur create-completion-spec-file Genome::Command`;
-#`cd $snapshot_path/lib/perl/; ur create-completion-spec-file Genome::Model::Tools`;
-#`cd $snapshot_path/lib/perl/; ur create-completion-spec-file UR::Namespace::Command`;
+`cd $snapshot_path/lib/perl/; ur create-completion-spec-file Genome::Command`;
+`cd $snapshot_path/lib/perl/; ur create-completion-spec-file Genome::Model::Tools`;
+`cd $snapshot_path/lib/perl/; ur create-completion-spec-file UR::Namespace::Command`;
 print "Finished copying to local machine. Snapshot available at $snapshot_path\n";
 
 if ( defined $testing ) {
