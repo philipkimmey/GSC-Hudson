@@ -1,7 +1,7 @@
 package Defaults;
 
 our $RSS_FEED_URL = 'http://hudson:8090/job/Genome/rssAll';
-our $BUILD_PATH = '/gscuser/apipe/.hudson/jobs/Genome/builds';
+our $BUILD_PATH = '/gscuser/mjohnson/.hudson/jobs/Genome/builds';
 our $SNAPSHOT_PATH = $ENV{HOME} . '/.snapshot';
 our $GSCPAN = $ENV{GSCPAN} || 'svn+ssh://svn/srv/svn/gscpan';
 
