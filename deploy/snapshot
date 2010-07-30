@@ -34,12 +34,13 @@ if ($#ARGV == -1) { # no args. print usage message.
     print "   --workflow {hash}\tUse workflow from Git hash (hash).\n";
     exit;
 }
-my ($genome_hash, $ur_hash, $workflow_hash, $new_build_number, $recent, $deploy, $snapshot_name);
+my ($genome_hash, $ur_hash, $workflow_hash, $new_build_number, $recent, $testing, $modeltests, $snapshot_name);
 
 GetOptions (
     "name=s" => \$snapshot_name,
     "recent" => \$recent,
-    "deploy" => \$deploy,
+    "testing" => \$testing,
+    "modeltests" => \$modeltests,
     "build=i" => \$new_build_number,
     "genome=s" => \$genome_hash,
     "ur=s" => \$ur_hash,
@@ -88,16 +89,6 @@ unless (defined $genome_hash && $genome_hash ne '' && defined $ur_hash && $ur_ha
 my $snapshot_path = "$Defaults::SNAPSHOT_PATH/$snapshot_name";
 my $working_path = "/tmp/working-$snapshot_name";
 
-#if (-e ($snapshot_path) ) { die "Snapshot dir exists at $snapshot_path\n"; }
-
-#`mkdir $snapshot_path`;
-#`mkdir $working_path`;
-
-# first we're going to clone all the stuff we want into our working path.
-
-#`mkdir $snapshot_path/lib; mkdir $snapshot_path/lib/perl`;
-
-# define repositories, locations, namespaces
 my @repos = (
     {
         repository_name => 'UR',
@@ -125,31 +116,6 @@ my @repos = (
 
 Library::snapshot_namespaces( $snapshot_path, @repos );
 
-=begin
-my $recorded_hash;
-my $command;
-for my $repo (@repos) {
-    $command = "cd $working_path; git clone " . $repo->{'repository_url'} . " " . $repo->{'repository_name'};
-    `$command`;
-    $command = "cd $working_path/" . $repo->{'repository_name'} . "; git show --pretty=oneline " . $repo->{'hash'} . " | tr -d '\n' | cut -d ' ' -f1";
-    $recorded_hash = `$command`;
-    chomp $recorded_hash; chomp $recorded_hash; chomp $recorded_hash;
-    for my $ns ( @{ $repo->{'namespaces'} } ) {
-        print "Beginning work on namespace $ns\n";
-        $command = "cd $working_path/" . $repo->{'repository_name'} . "/" . $repo->{'library_path'} . "; git archive " . $repo->{'hash'} . " $ns | tar -x -C $snapshot_path/lib/perl";
-        `$command`;
-        $command = "cd $working_path/" . "/" . $repo->{'repository_name'} . "/" . $repo->{'library_path'} . "; git archive " . $repo->{'hash'} . " $ns.pm | tar -x -C $snapshot_path/lib/perl";
-        `$command`;
-    }
-    # record hash in revisions.txt
-    $command = 'echo "' . $repo->{'repository_name'} . ' ' . $recorded_hash . '" >> ' . $snapshot_path . "/revisions.txt";
-    `$command`;
-}
-
-$command = "rm $working_path/ -rf";
-`$command`;
-=end
-=cut
 my @dump_files = `find $snapshot_path -iname *sqlite3-dump`;
 for my $sqlite_dump (@dump_files) {
     my $sqlite_db = $sqlite_dump;
@@ -158,16 +124,24 @@ for my $sqlite_dump (@dump_files) {
     if (-e $sqlite_db) {
         #warn "SQlite database $sqlite_db already exists.";
     } else {
-        `sqlite3 $sqlite_db < $sqlite_dump`;
+        my $sqlite_path = $ENV{SQLITE_PATH} || 'sqlite3';
+        `$sqlite_path $sqlite_db < $sqlite_dump`;
     }
     unless (-e $sqlite_db) {
         die "Failed to reconstitute $sqlite_dump as $sqlite_db!";
     }
 }
 
+print "FIXME MISSING SO FILES: Generating auto-competition opt files\n";
+#`cd $snapshot_path/lib/perl/; ur create-completion-spec-file Genome::Command`;
+#`cd $snapshot_path/lib/perl/; ur create-completion-spec-file Genome::Model::Tools`;
+#`cd $snapshot_path/lib/perl/; ur create-completion-spec-file UR::Namespace::Command`;
 print "Finished copying to local machine. Snapshot available at $snapshot_path\n";
 
-if ( defined $deploy ) {
-    `scp -pqr $snapshot_path linus1:/gsc/scripts/opt/genome-$genome_hash-testing`; # deploy to /gsc/scripts/opt if used the --deploy flag
-    print "Finished copying to remote server. Snapshot available at /gsc/scripts/opt/genome-$genome_hash-testing\n";
+if ( defined $testing ) {
+    `scp -pqr $snapshot_path linus1:/gsc/scripts/opt/testings/`; # deploy to /gsc/scripts/opt if used the --deploy flag
+    print "Finished copying to remote server. Snapshot available at /gsc/scripts/opt/testings/$snapshot_name \n";
+    if ( defined $modeltests ) {
+        
+    }
 }
