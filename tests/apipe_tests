@@ -1,7 +1,7 @@
 #!/gsc/bin/perl
 
 BEGIN {
-    die "Please provide the snapshot path as the first arg. i.e. genome-#####/lib/perl" unless ($#ARGV == 0 or defined $ENV{GENOME_LIBRARY_PATH} );
+    die "Please provide the snapshot path as the first arg. i.e. genome-#####/lib/perl or set GENOME_LIBRARY_PATH" unless ($#ARGV == 0 or defined $ENV{GENOME_LIBRARY_PATH} );
     if ( defined $ENV{GENOME_LIBRARY_PATH} ) {
         unshift (@INC, $ENV{GENOME_LIBRARY_PATH});
         print "Testing on " . $ENV{GENOME_LIBRARY_PATH} . "\n";
