@@ -1,6 +1,8 @@
 package Library;
 
 use UR;
+use LWP::Simple;
+use Defaults;
 
 sub snapshot_namespaces {
     my $recorded_hash;
@@ -50,7 +52,7 @@ sub check_for_new_build { # returns new build number or 0 if none.
     my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime(time);
     $mon = ($mon+1); # mon is 0 indexed by default.
 
-    my $rss_feed = get('http://linus262:8080/job/Genome/rssAll');
+    my $rss_feed = get($Defaults::RSS_FEED_URL);
 
     my @entries = ($rss_feed =~ /<entry>(.+?)<\/entry>/g);
 
