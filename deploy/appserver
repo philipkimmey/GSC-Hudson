@@ -1,0 +1,488 @@
+#!/gsc/bin/perl
+
+use strict;
+use warnings;
+
+use File::Copy;
+use Sys::Hostname qw/hostname/;
+use UR;
+
+# TODO: log and email this stuff
+my $out = 'STDOUT';
+$out->autoflush(1);
+
+my $deploy_host = 'deploy';
+
+my $hudson_build_number = shift;
+
+unless ($hudson_build_number and $hudson_build_number =~ /^\d+$/) {
+    die "the first parameter should be the hudson build number to deploy";
+}
+
+my $snapshot_dir = "/gsc/scripts/opt/passed-model-tests/genome-$hudson_build_number";
+
+unless (-d $snapshot_dir) { 
+    die "cannot find a snapshot for hudson build $hudson_build_number at expected path $snapshot_dir";
+} 
+
+my @ns = (qw/BAP Command EGAP GAP Genome MGAP PAP UR Workflow/);
+
+$out->print("deploying hudson build number $hudson_build_number of the following namespace(s): @ns\n");
+
+######This relies on the user setting this environment variable######
+my $APPSERVER;
+
+if (1) {
+    $APPSERVER = '/gsc/scripts/lib/perl';
+}
+else {
+    $APPSERVER = $ENV{HOME} . '/fakeappserver';
+    $out->print("overriding deployment directory for testing to...\n");
+    unless (-d $APPSERVER) {
+        mkdir $APPSERVER;
+        unless (-d $APPSERVER) {
+            die "cannot create fake app server directory: $APPSERVER: $!";
+        }
+    }
+}
+$out->print("deploying to $APPSERVER\n");
+
+unless (-d $APPSERVER) {
+    die "Failed to find appserver path $APPSERVER!";
+}
+
+# create a temp directory into which we will put the new modules
+my $hostname = hostname();
+my $t = UR::Time->now;
+$t =~ s/\s/_/g;
+my $tmp_dir = join("-", 'deploy', $t, 'b' . $hudson_build_number, $ENV{USER},  hostname(), 'pid' . $$, join("~",@ns));
+$tmp_dir =~ s/\s/_/g;
+$tmp_dir =~ s/\:/-/g;
+my $tmp_base = $ENV{HOME} . "/" . $tmp_dir; 
+
+$out->print("working directory is $tmp_dir\n");
+
+mkdir $tmp_base;
+
+unless (-e $tmp_base) {
+    die "failed to create temp directory $tmp_base for deployment: $!";
+}   
+
+if (-d "$APPSERVER/$tmp_dir") {
+    die "$tmp_dir already on app server?";
+}
+
+eval {
+    copy_to_appserver($tmp_base,$tmp_dir);
+};
+
+if ($@) {
+    $out->print("removing temp home dir after failure to put a copy of it on the app server...\n");
+    rmdir $tmp_base;
+    exit 1;
+}
+
+my %ns_lock;
+
+eval {
+    ensure_latest_revision();
+
+    for my $dir (
+        $tmp_base,
+        $tmp_base . '/new',
+        $tmp_base . '/old',
+    ) {
+        mkdir $dir unless -d $dir;
+        unless (-e $dir) {
+            die "failed to create temp directory $dir for deployment: $!";
+        }   
+    }
+
+    # lock namespaces we're going to update
+    for my $ns (sort @ns) {
+        my $real = "$APPSERVER/$ns";
+        my $lock_dir = "$real.lock";
+        $out->print("locking $ns\n");
+        my $retval = system "ssh $deploy_host 'mkdir $lock_dir'";
+        $retval /= 256;
+        if ($retval) {
+            die "Failed to lock $real.  Possible overlapping deployment ($lock_dir: $!).\n";
+        }
+        $ns_lock{$ns} = $lock_dir;
+    }
+  
+    # copy namespaces from snapshot dir
+    for my $ns (@ns) {
+        my $snapshot_ns = "$snapshot_dir/lib/perl/$ns";
+
+        $out->print("copying $ns from $snapshot_ns\n");
+        my $cmd = "cp -r $snapshot_ns $tmp_base/new";
+
+        my $exit_code = runcmd_return_exit_code($cmd);
+
+        if ($exit_code) {
+            $out->print("error copying!\n");
+            die "failed to copy models in namespace $ns";
+        } 
+        
+        my $snapshot_ns_pm = $snapshot_ns . '.pm';
+
+        $out->print("copying $ns.pm from $snapshot_ns_pm\n");
+        $cmd = "cp -r $snapshot_ns_pm $tmp_base/new";
+ 
+        $exit_code = runcmd_return_exit_code($cmd);
+
+        if ($exit_code) {
+            $out->print("error copying!\n");
+            die "failed to namespace module $snapshot_ns_pm";
+        }
+       
+    }
+ 
+    # use all of the modules in each namespace and show the results
+    # this will have the side effect of compiling all Inline::C stuff, and also alert the deployer to uncompilable modules
+    for my $ns (@ns) {
+        if ($ns =~ /^UR/ or $ns =~ /Command/) {
+            $out->print("skipping direct compile of modules in namespace: ******************* $ns *******************\n");
+            next;
+        }
+        $out->print("compiling modules in namespace: ******************* $ns *******************\n");
+        #$out->print("changing directories to $tmp_base/new/$ns\n");
+        
+        my $exit_code = runcmd_return_exit_code("cd $tmp_base/new/$ns;perl -I .. `which ur` test use");
+
+        if ($exit_code) {
+            $out->print("error compiling!\n");
+            die "failed to compile all modules in namespace $ns";
+        }
+    }
+
+    # compare differences
+    for my $ns (@ns) {
+        my $real = "$APPSERVER/$ns";
+        
+        my $tmp = $tmp_base . '/new/' . $ns;
+        my $bak = $tmp_base . '/old/' . $ns;
+        
+        my @files = `find $tmp`;
+        chomp @files;
+        
+        my @deleteme;
+        my @keep;
+        
+        for my $file (reverse @files) {
+            if ($file =~ m/foo_t_blarg/) {
+                warn "why, oh, why";
+            }
+
+            #if ($file =~ /\/\.svn\b/ or $file =~ m/\bt\b/ or $file =~ m/^\./) { 
+            if ($file =~ /\/\.svn\b/ or $file =~ m/^\./) { 
+                if (-d $file) {
+                    unless (rmdir $file) {
+                        die "Can't remove directory $file: $!";
+                    }   
+                }
+                else {
+                    unless (unlink $file) {
+                        die "Can't remove file $file: $!";
+                    }
+                }
+                push @deleteme, $file;
+            }
+            else {
+                push @keep, $file;
+            }
+        }
+
+        my @still_undeleted = grep { -e $_ } @deleteme;
+        die "@still_undeleted\n" if @still_undeleted;
+
+        system "chgrp -R app $tmp";
+        
+        for my $file (@keep) {
+            if (-d $file) {
+                chmod 02775, $file; 
+            }        
+            else {
+                chmod 00444, $file;
+            }
+        }
+
+        my @sqlite_dump = grep { $_ =~ qr|\.sqlite3-dump$| } @keep;
+        
+        for my $sqlite_dump (@sqlite_dump) {
+            my $sqlite_db = $sqlite_dump;
+            $sqlite_db =~ s/-dump//;
+            if (-e $sqlite_db) {
+                warn "SQLite database $sqlite_db already exists?";
+            }
+            `sqlite3 $sqlite_db < $sqlite_dump`;
+            unless (-e $sqlite_db) {
+                die "Failed to reconstitute $sqlite_dump as $sqlite_db!";
+            }
+        }
+
+        chdir $tmp;
+        chdir '..';
+        my @diff = `diff -r --brief $real $ns`;
+        #$out->print @diff,"\n";
+
+        my @add;
+        my @remove;
+        my @change;
+        
+        for my $diff (@diff) {
+            if ($diff =~ /^Only in (.*)\: (.*)$/) {
+                my ($dir,$file) = ($1,$2);
+                my $path = $dir . '/' . $file;
+                if ($path =~ /^$ns/) {
+                    if (-d $path) {
+                        push @add, grep { not -d } map { chomp; $_ } `find $path`;
+                    }
+                    else {
+                        push @add, $path;
+                    }
+                }
+                else {
+                    push @remove, $path;
+                }
+            }
+            elsif($diff =~ /Files (.*) and (.*) differ$/) {
+                my ($old,$new) = ($1,$2);
+                push @change, $new;
+            }
+            else {
+                $out->print("Odd diff output: $diff\n");
+                die;
+            }
+        }
+
+        if (@add or @change or @remove) {
+            $out->print("\n**** Changes to $ns ****\n");
+            $out->print("\nThese files are new and will be added to the app server:\n" . join("\n",sort @add), "\n") if @add;
+            $out->print("\nThese files are changed and will be overwritten on the app server:\n" . join("\n",sort @change), "\n") if @change;
+            $out->print("\nThese files were removed and will be removed from the app server:\n" . join("\n",sort @remove), "\n") if @remove;
+        }
+        else {
+            $out->print("\n**** No changes to $ns ****\n");
+        }
+    }
+
+    my $sh = IO::File->new(">$tmp_base/install.sh");
+    $sh or die $!;
+
+    $out->print("\n\npreparing install script..\n\n");
+
+    
+    $sh->print("echo replacing modules in $APPSERVER...\n");
+
+    # move out the top-level modules 
+    for my $ns (@ns) {
+        my $real = "$APPSERVER/$ns";
+        my $tmp = $APPSERVER . '/' . $tmp_dir . '/new/' . $ns;
+        my $bak = $APPSERVER . '/' . $tmp_dir . '/old/' . $ns;
+       
+        $out->print("moving $real.pm to $bak.pm\n"); 
+        append_mv($sh, "$real.pm", "$bak.pm") or die "$!";
+    }
+
+    # move out the tree under them
+    for my $ns (@ns) {
+        my $real = "$APPSERVER/$ns";
+        my $tmp = $APPSERVER . '/' . $tmp_dir . '/new/' . $ns;
+        my $bak = $APPSERVER . '/' . $tmp_dir . '/old/' . $ns;
+       
+        $out->print("moving $real to $bak\n"); 
+        append_mv($sh, $real, $bak) or die "$!";
+    }
+
+    # put back the tree under them
+    for my $ns (@ns) {
+        my $real = "$APPSERVER/$ns";
+        my $tmp = $APPSERVER . '/' . $tmp_dir . '/new/' . $ns;
+        my $bak = $APPSERVER . '/' . $tmp_dir . '/old/' . $ns;
+       
+        $out->print("moving $tmp to $real\n"); 
+        append_mv($sh, $tmp, $real) or die "$!";
+    }
+
+
+    # put back the top-level modules
+    for my $ns (@ns) {
+        my $real = "$APPSERVER/$ns";
+        my $tmp = $APPSERVER . '/' . $tmp_dir . '/new/' . $ns;
+        my $bak = $APPSERVER . '/' . $tmp_dir . '/old/' . $ns;
+       
+        $out->print("moving $tmp.pm to $real.pm\n"); 
+        append_mv($sh, "$tmp.pm", "$real.pm") or die "$!";
+    }
+
+    $sh->print("rmdir $APPSERVER/$tmp_dir/new\n");
+
+    $sh->print("echo install complete");
+    
+    $sh->close;
+
+    copy_to_appserver("$tmp_base/*",$tmp_dir);
+    unless (-d "$APPSERVER/$tmp_dir") {
+        die "failed to transfer the deployment directory to the app server";
+    }
+
+    unless (-d "$APPSERVER/$tmp_dir/new" and -d "$APPSERVER/$tmp_dir/old") {
+        die "Failed to transfer content of $tmp_dir to the app server!";
+    }
+
+    
+
+    $out->print("\nAdding user executable permisions to script for install: $APPSERVER/$tmp_dir/install.sh\n");
+    $DB::single = 1;
+    my $chmod_rv = system "ssh $deploy_host chmod u+x $APPSERVER/$tmp_dir/install.sh";
+    $chmod_rv /= 256;
+    if ($chmod_rv) {
+        die "Error modifying permissions of install file $APPSERVER/$tmp_dir/install.sh:  $!";
+    }
+};
+
+if ($@) {
+    warn "Got exception: $@!!!!!!!\nExiting...\n";
+    cleanup_failure_and_exit();
+}
+
+$out->print("Running the install on $deploy_host to complete the install: $APPSERVER/$tmp_dir/install.sh\n\n");
+$DB::single = 1;
+
+my $rv = system "ssh $deploy_host $APPSERVER/$tmp_dir/install.sh";
+$rv /= 256;
+if ($rv) {
+    die "Error installing! $!  This may require manual cleanup.  (You should get help now.)\n";
+}
+
+cleanup_success_and_exit();
+
+
+sub copy_to_appserver {
+    my ($from,$to) = @_;
+    system "scp -pqr $from $deploy_host:$APPSERVER/$to";
+    my $t = time;
+    system ("touch $APPSERVER");
+    while (not -d "$APPSERVER/$to") {
+        if (time-$t > 60) {
+            die "failed to copy $to to app server?";
+        }
+        else {
+            $out->print("waiting for app server copy to appear...\n");
+        }
+        sleep 2; 
+    }
+}
+
+sub ensure_latest_revision {
+    my @deploys = glob("$APPSERVER/deploy-*");
+    if (@deploys == 0 or (@deploys == 1 and $deploys[0] =~ /\*/)) {
+        return;
+    }
+    my @builds = map { /deploy-.*?-b(\d+)-/ }  @deploys;
+    if (grep { not defined $_ } @builds) {
+        die "Error parsing revision numbers from deployment directories:\n@builds\n"
+            . join("\n", @deploys) . "\n";
+    }
+    @builds = sort { $a <=> $b } @builds;
+    my $last_deployed_build = $builds[-1];
+    $out->print("last deployed revision is $last_deployed_build\n");
+    if ($last_deployed_build > $hudson_build_number) {
+        die "This build ($hudson_build_number) is older than the last deployed build! $last_deployed_build";
+    }
+}
+
+sub cleanup_failure_and_exit {
+    $DB::single = 1;
+    cleanup_home();
+    cleanup_appserver();
+    unlock_namespaces();
+    $out->print("Cleanup complete\n");
+    exit 1;
+}
+
+sub cleanup_success_and_exit {
+    $DB::single = 1;
+    $out->print("\nInstallation complete!\n");
+    cleanup_home();
+    unlock_namespaces();
+    $out->print("The most recently changed files from $APPSERVER: (ls -lt | head -n 20)");
+    system "ls -lt $APPSERVER | head -n 20";
+    exit 0;
+}
+
+
+sub cleanup_appserver {
+    my $cmd = "ssh $deploy_host /bin/rm -rf $APPSERVER/$tmp_dir";    
+    $out->print("Cleaning up after successful deploy.  Running: $cmd\n");
+    my $rv = system $cmd;
+    if ($rv) {
+        $DB::single = 1;
+        die "Failed to cleanup directory! $!\ncommand was: $cmd";
+    }
+}
+
+sub cleanup_home {
+    my $cmd  = "/bin/rm -rf $ENV{HOME}/$tmp_dir";
+    $out->print("Cleaning up after successful deploy.  Running: $cmd\n");
+    my $rv = system $cmd;
+    if ($rv) {
+        $DB::single = 1;
+        die "Failed to cleanup directory! $!\ncommand was: $cmd";
+    }
+}
+
+sub unlock_namespaces {
+    for my $ns (@ns) {
+        my $dir = $ns_lock{$ns};
+        next unless defined $dir;
+        next unless (-d $dir);
+        $out->print("\nUnlocking namespace $ns...!\n");
+        system "ssh $deploy_host 'rmdir $dir'";
+        if (-e $dir) {
+            warn "ERROR REMOVING LOCK DIRECTORY $dir! $!";
+        }
+    }
+}
+
+sub runcmd_return_stdout {
+    my $src = shift;
+    my $errfile = "/tmp/err.$$";
+    if (-e $errfile) {
+        unlink $errfile
+    }
+    if (-e $errfile) {
+        die "Failed to remove error file $errfile: $!";
+    }
+    #$out->print("    RUN: $src\n");
+    my @results = `$src 2>$errfile`;
+    if (-s $errfile) {
+        die "error:" . `cat $errfile`; 
+    }
+    return @results;
+}
+
+sub runcmd_return_exit_code {
+    my $src = shift;
+    my $errfile = "/tmp/err.$$";
+    if (-e $errfile) {
+        unlink $errfile
+    }
+    if (-e $errfile) {
+        die "Failed to remove error file $errfile: $!";
+    }
+    #$out->print("    RUN: $src\n");
+    my $retval = system "$src 2>$errfile";
+        $retval /= 256;
+    if ($retval) {
+        $out->print("FAILED ($retval): $!\n");
+    }
+    return $retval;
+}
+
+sub append_mv {
+    my ($sh,$from,$to) = @_;
+    $sh->print("echo install $to;\t\tmv $from $to\n");
+}
