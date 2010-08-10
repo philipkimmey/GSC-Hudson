@@ -1,20 +1,10 @@
 #!/gsc/bin/perl
 
-BEGIN {
-    die "Please provide the snapshot path as the first arg. i.e. genome-#####/lib/perl or set GENOME_LIBRARY_PATH" unless ($#ARGV == 0 or defined $ENV{GENOME_LIBRARY_PATH} );
-    my $library_path;
-    if ( defined $ENV{GENOME_LIBRARY_PATH} ) {
-        $library_path = $ENV{GENOME_LIBRARY_PATH};
-    } else {
-        $library_path = $ARGV[0];
-    }
-    unshift (@INC, $library_path);
-    print "Testing on " . $library_path . "\n";
-}
-
 use warnings;
 use strict;
-use Genome;
+
+use above 'Genome';
+use above 'UR';
 
 my $LOOP_SLEEP_MINS = 1;
 my $TIMEOUT_HOURS = 30;
@@ -39,7 +29,7 @@ foreach my $build_id (@build_ids) {
 }
 
 my $start_msg_body = "This is an initial notification. You will receive the results within 30 hours.\n";
-$start_msg_body .= "Running tests on libraries at: " . $library_path . "\n";
+$start_msg_body .= "Running tests on libraries at: " . join(':', UR::Util::used_libs) . "\n";
 $start_msg_body .= "Build ids started are:\n";
 foreach my $build_id (@build_ids) {
     $start_msg_body .= $build_id . ": https://imp.gsc.wustl.edu/view/Genome/Model/Build/status.html?id=" . $build_id . "\n" ;
