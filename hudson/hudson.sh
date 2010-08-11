@@ -93,4 +93,4 @@ echo -n "workflow " >> $HUDSON_PROJECT_PATH/$JOB_NAME/builds/$BUILD_NUMBER/revis
 cd $WORKSPACE/genome/lib/perl/Genome/
 export PERL_TEST_HARNESS_DUMP_TAP=$WORKSPACE/test_result
 export PERL5LIB=$WORKSPACE/UR/lib:$WORKSPACE/genome/lib/perl:$WORKSPACE/workflow/lib/perl:/gsc/lib/perl5/site_perl/5.8.3/i686-linux/:/gsc/lib/perl5/site_perl/5.8.3/:/gsc/lib/perl5/5.8.7/
-/gsc/scripts/sbin/gsc-cron $WORKSPACE/UR/bin/ur test run --recurse --junit --lsf --jobs=5
+/gsc/scripts/sbin/gsc-cron $WORKSPACE/UR/bin/ur test run --lsf-params="-q short -R 'select[type==LINUX64 && model!=Opteron250 && tmp>1000 && mem>4000] rusage[tmp=1000, mem=4000]'" --recurse --junit --lsf --jobs=10
